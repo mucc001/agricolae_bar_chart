@@ -26,7 +26,9 @@ def read_csv_file(filename):
         group_names_list_nonull = [x for x in group_names_list if x]
         if len(group_names_list_nonull) == 1:
             group_name = group_names_list_nonull[0]
-            data = [row for row in csvreader]
+            data = {}
+            for row in csvreader: 
+                data[row[0]] = [float(x) for x in row[1:]]
         elif len(group_names_list_nonull) == 2:
             group_subgroup_data = {}
             prev_group_name = ""
@@ -47,22 +49,19 @@ def read_csv_file(filename):
         return y_axis_name, data
 
 def run_r_test(data, testname):
-    # group_one_names = list(data.keys())[:2]
     r_data = copy.deepcopy(data)
     r_df = []
     dropped_key = []
-    # Check if r_data is a dictionary of dictionaries
-    if not isinstance(r_data, dict):
-        for group, values in r_data:
-            temp = values
-            temp.insert(0, str(group))
-            r_df.append(temp)
 
-    else:
-        for group, subgroups in r_data.items():
-            for subgroup, values in subgroups.items():
+    for key, value in r_data.items():
+        if isinstance(value, list):
+            temp = value
+            temp.insert(0, str(key))
+            r_df.append(temp)
+        else:
+            for subgroup, values in value.items():
                 temp = values
-                temp.insert(0, str(group) + ',' + str(subgroup))
+                temp.insert(0, str(key) + ',' + str(subgroup))
                 r_df.append(temp)
     
     data = r_df
@@ -125,7 +124,7 @@ def generate_bar_chart(y_axis_name, data, r_test_results):
     width = 1 / (num_groups + 1)
     for j, group in enumerate(data):
         ax.bar(np.arange(len(subgroups)) + j * width, means[:, j], width=width, yerr=stds[:, j], label=group, alpha=0.75, capsize=10, 
-               color=colors[j], hatch=patterns[j], ecolor='black', error_kw=dict(lw=1, capthick=1, capsize=5))
+               color=colors[j % 9], hatch=patterns[j % 9], ecolor='black', error_kw=dict(lw=1, capthick=1, capsize=5))
 
     for i, subgroup in enumerate(subgroups):
         for j, (group, values) in enumerate(data.items()):
@@ -148,11 +147,50 @@ def generate_bar_chart(y_axis_name, data, r_test_results):
     plt.tight_layout()
     plt.show()
 
+def generate_bar_chart_no_subgroup(y_axis_name, data, r_test_results):
+    groups = list(data.keys())
+    num_groups = len(data)
+
+    patterns = ['/', '\\', 'x', '*', '.', '+', 'o', '|', 'O', '-',]
+    colors = list(mcolors.TABLEAU_COLORS.values())
+
+    means = np.zeros(num_groups)
+    stds = np.zeros(num_groups)
+    for i, (key, value) in enumerate(data.items()):
+        print(value)
+        means[i] = np.mean(value)
+        stds[i] = np.std(value, ddof=1)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    width = 1 / (num_groups + 1)
+    for j, group in enumerate(data):
+        ax.bar(j * width, means[j], width=width, yerr=stds[j], label=group, alpha=0.75, capsize=10, 
+               color=colors[j % 9], hatch=patterns[j % 9], ecolor='black', error_kw=dict(lw=1, capthick=1, capsize=5))
+
+    for i, (key, value) in enumerate(data.items()):
+            label = r_test_results.loc[key]['groups']
+            if value != 0:
+                ax.text(i * width, value + stds[i], label, ha='center', va='bottom')
+
+    # ax.set_xticks(np.arange(len(groups)) + (num_groups - 1) * width / 2)
+
+    # groups_wrapped = [textwrap.fill(s, 10) for s in groups]
+    # ax.set_xticklabels(groups_wrapped)
+    ax.set_ylabel(y_axis_name)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.2), ncol=2)
+    ax.annotate('Fast Bar Chart', (2.5, 10), alpha=0.2, ha="center", va="center", fontsize=30,  rotation=30, color="gray")
+    manager = plt.get_current_fig_manager()
+    manager.full_screen_toggle()
+    # plt.tight_layout()
+    plt.show()
+
 def main():
     args = parse_arguments()
     y_axis_name, data = read_csv_file(args.filename)
     r_test_results = run_r_test(data, args.test)
-    generate_bar_chart(y_axis_name, data, r_test_results)
+    
+    generate_bar_chart_no_subgroup(y_axis_name, data, r_test_results)
+    # generate_bar_chart(y_axis_name, data, r_test_results)
 
 if __name__ == '__main__':
     main()
