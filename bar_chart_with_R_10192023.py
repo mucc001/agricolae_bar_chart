@@ -15,7 +15,7 @@ import copy
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Bar chart generation')
     parser.add_argument('-f', '--filename', help='Path to the CSV file')
-    parser.add_argument('-t', '--test', help='Default is LSD. If test flag is set to be turkey, turkey test will be conducted.')
+    parser.add_argument('-t', '--test', help='Default is LSD. If test flag is set to be tukey, tukey test will be conducted.')
     return parser.parse_args()
 
 def read_csv_file(filename):
@@ -82,7 +82,7 @@ def run_r_test(data, testname):
 
     robjects.globalenv['data_long_df'] = data_long_df
 
-    if testname == "turkey":
+    if testname == "tukey":
         r_code = '''
         model <- aov(Value ~ Group, data = data_long_df)
         cv.model(model)
@@ -96,7 +96,7 @@ def run_r_test(data, testname):
         cv.model(model)
         df <- df.residual(model)
         MSerror <- deviance(model) / df
-        LSD.test(model, "Group",  p.adj="bonferroni", console = TRUE)
+        LSD.test(model, "Group", p.adj="bonferroni", console = TRUE)
         '''
 
     result = robjects.r(r_code)
@@ -157,31 +157,32 @@ def generate_bar_chart_no_subgroup(y_axis_name, data, r_test_results):
     means = np.zeros(num_groups)
     stds = np.zeros(num_groups)
     for i, (key, value) in enumerate(data.items()):
-        print(value)
         means[i] = np.mean(value)
         stds[i] = np.std(value, ddof=1)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     width = 1 / (num_groups + 1)
+    offset = 0.1
     for j, group in enumerate(data):
-        ax.bar(j * width, means[j], width=width, yerr=stds[j], label=group, alpha=0.75, capsize=10, 
+        ax.bar(j * (width + offset), means[j], width=width, yerr=stds[j], label=group, alpha=0.75, capsize=10, 
                color=colors[j % 9], hatch=patterns[j % 9], ecolor='black', error_kw=dict(lw=1, capthick=1, capsize=5))
+
+    print(r_test_results)
 
     for i, (key, value) in enumerate(data.items()):
             label = r_test_results.loc[key]['groups']
+            value = means[i]
             if value != 0:
-                ax.text(i * width, value + stds[i], label, ha='center', va='bottom')
+                ax.text(i * (width + offset), value + stds[i], label, ha='center', va='bottom')
 
-    # ax.set_xticks(np.arange(len(groups)) + (num_groups - 1) * width / 2)
-
-    # groups_wrapped = [textwrap.fill(s, 10) for s in groups]
-    # ax.set_xticklabels(groups_wrapped)
+    ax.set_xticks([j * (width + offset) for j in range(num_groups)])
+    groups_wrapped = [textwrap.fill(s, 10) for s in groups]
+    ax.set_xticklabels(groups_wrapped)
     ax.set_ylabel(y_axis_name)
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.2), ncol=2)
     ax.annotate('Fast Bar Chart', (2.5, 10), alpha=0.2, ha="center", va="center", fontsize=30,  rotation=30, color="gray")
     manager = plt.get_current_fig_manager()
     manager.full_screen_toggle()
-    # plt.tight_layout()
+    plt.tight_layout()
     plt.show()
 
 def main():
